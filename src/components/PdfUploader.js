@@ -19,14 +19,8 @@ const PdfUploader = ({
   const [pdfContents, setPdfContents] = useState({});
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState({});
-  const [invoiceNo, setInvoiceNo] = useState("");
-  const [item, setItem] = useState("");
-  const [price, setPrice] = useState("");
-  const [autoFilledFields, setAutoFilledFields] = useState({
-    invoiceNo: false,
-    item: false,
-    price: false,
-  });
+  const [extractedTableData, setExtractedTableData] = useState([]);
+  const [editableItems, setEditableItems] = useState([]);
   const fileInputRef = useRef(null);
   const handleDrag = (e) => {
     e.preventDefault();
@@ -46,12 +40,13 @@ const PdfUploader = ({
       handleFiles(e.dataTransfer.files);
     }
   };
-
   const handleChange = (e) => {
     e.preventDefault();
     if (e.target.files && e.target.files[0]) {
       handleFiles(e.target.files);
     }
+    // Clear the input value to allow re-uploading the same file
+    e.target.value = "";
   };
 
   const validateFile = (file) => {
@@ -138,76 +133,269 @@ const PdfUploader = ({
       .replace(/\n +/g, "\n") // Remove spaces at the beginning of lines
       .replace(/ +\n/g, "\n") // Remove spaces at the end of lines
       .trim();
-  };
-
-  // Function to extract form data from PDF text
-  const extractFormDataFromPdf = (pdfContent) => {
-    if (!pdfContent || !pdfContent.pages) return null;
+  }; // Enhanced function to extract table data from PDF text
+  const extractTableDataFromPdf = (pdfContent) => {
+    if (!pdfContent || !pdfContent.pages) return [];
 
     // Combine all page text into one string for analysis
     const fullText = pdfContent.pages.map((page) => page.text || "").join("\n");
 
-    const extractedData = {
-      invoiceNo: "",
-      item: "",
-      price: "",
-    };
+    const extractedItems = extractTableItems(fullText);
+    return extractedItems;
+  };
+  // Function to extract table items with enhanced table detection
+  const extractTableItems = (text) => {
+    const items = [];
+    const lines = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
 
-    // Extract Invoice Number (case insensitive)
-    const invoicePatterns = [
-      /invoice\s*(?:no|number|#)?\s*[:\-]?\s*([a-zA-Z0-9\/\-]+)/i,
-      /inv\s*(?:no|number|#)?\s*[:\-]?\s*([a-zA-Z0-9\/\-]+)/i,
-      /(?:ref|reference)\s*[:\-]?\s*([a-zA-Z0-9\/\-]+)/i,
-      /#\s*([a-zA-Z0-9\/\-]+)/,
+    console.log("PDF Text Lines for Table Extraction:", lines.slice(0, 20)); // Debug first 20 lines
+
+    // Strategy 1: Detect table headers and data rows
+    let tableStartIndex = -1;
+    let tableEndIndex = -1;
+
+    // Look for common table headers
+    const headerPatterns = [
+      /(?:description|item|product|service).*?(?:qty|quantity).*?(?:price|amount|rate|cost)/i,
+      /(?:item|product).*?(?:price|amount|cost)/i,
+      /(?:description|service).*?(?:amount|total|price)/i,
+      /(?:no|#).*?(?:description|item).*?(?:price|amount)/i,
     ];
 
-    for (const pattern of invoicePatterns) {
-      const match = fullText.match(pattern);
-      if (match && match[1] && match[1].length > 2) {
-        extractedData.invoiceNo = match[1].toUpperCase().trim();
-        break;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Find table header
+      if (tableStartIndex === -1) {
+        for (const pattern of headerPatterns) {
+          if (pattern.test(line)) {
+            tableStartIndex = i + 1; // Start after header
+            break;
+          }
+        }
       }
-    }
 
-    // Extract Item/Description
-    const itemPatterns = [
-      /(?:description|item|product|service)\s*[:\-]?\s*([^\n\r]+)/i,
-      /(?:for|regarding)\s*[:\-]?\s*([^\n\r]+)/i,
-      /(?:goods|services)\s*[:\-]?\s*([^\n\r]+)/i,
-    ];
-
-    for (const pattern of itemPatterns) {
-      const match = fullText.match(pattern);
-      if (match && match[1] && match[1].trim().length > 3) {
-        extractedData.item = match[1]
-          .trim()
-          .replace(/[^\w\s.,\-]/g, "") // Remove unwanted special characters
-          .substring(0, 100); // Limit length
-        break;
-      }
-    }
-
-    // Extract Price/Amount
-    const pricePatterns = [
-      /(?:total|amount|price|cost|sum)\s*[:\-]?\s*[$£€¥]?\s*([0-9,]+\.?[0-9]*)/i,
-      /[$£€¥]\s*([0-9,]+\.?[0-9]*)/,
-      /([0-9,]+\.[0-9]{2})\s*(?:usd|eur|gbp|$|£|€)?/i,
-      /(?:pay|payment)\s*[:\-]?\s*[$£€¥]?\s*([0-9,]+\.?[0-9]*)/i,
-    ];
-
-    for (const pattern of pricePatterns) {
-      const match = fullText.match(pattern);
-      if (match && match[1]) {
-        const priceValue = match[1].replace(/,/g, ""); // Remove commas
-        const numericPrice = parseFloat(priceValue);
-        if (!isNaN(numericPrice) && numericPrice > 0) {
-          extractedData.price = numericPrice.toFixed(2);
+      // Find table end (look for totals, footer content)
+      if (tableStartIndex !== -1 && tableEndIndex === -1) {
+        if (
+          /(?:total|subtotal|tax|vat|grand total|amount due|balance|thank you|terms)/i.test(
+            line
+          )
+        ) {
+          tableEndIndex = i;
           break;
         }
       }
     }
 
-    return extractedData;
+    // If we found a table structure, extract data
+    if (tableStartIndex !== -1) {
+      const tableLines =
+        tableEndIndex !== -1
+          ? lines.slice(tableStartIndex, tableEndIndex)
+          : lines.slice(tableStartIndex);
+
+      for (let i = 0; i < tableLines.length; i++) {
+        const line = tableLines[i];
+
+        // Skip empty lines and obvious non-data lines
+        if (!line || /^[-=\s]+$/.test(line)) continue;
+        // Enhanced patterns for table row detection with improved quantity parsing
+        const tableRowPatterns = [
+          // Pattern 1: Description [quantity] [unit price] [total]
+          /^(.{3,}?)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9,]+\.?[0-9]*)\s+([0-9,]+\.?[0-9]*)\s*$/,
+          // Pattern 2: Description [quantity] [price/total]
+          /^(.{3,}?)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9,]+\.?[0-9]*)\s*$/,
+          // Pattern 3: Description with decimal quantity [price]
+          /^(.{3,}?)\s+([0-9]*\.?[0-9]+)\s+([0-9,]+\.?[0-9]*)\s*$/,
+          // Pattern 4: Item number + Description [quantity] [price]
+          /^(\d+\.?\s+.{3,}?)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9,]+\.?[0-9]*)\s*$/,
+          // Pattern 5: Description with quantity units (e.g., "5 each", "2.5 kg")
+          /^(.{3,}?)\s+([0-9]+(?:\.[0-9]+)?)\s*(?:each|pcs?|units?|items?|kg|lbs?|hrs?|hours?|days?|boxes?|sets?)?\s+([0-9,]+\.?[0-9]*)\s*$/i,
+          // Pattern 6: Description Price (no quantity visible, default to 1)
+          /^(.{5,}?)\s+([0-9,]+\.[0-9]{2})\s*$/,
+          // Pattern 7: Description - Price or Description : Price
+          /^(.{3,}?)\s*[-:]\s*([0-9,]+\.?[0-9]*)\s*$/,
+          // Pattern 8: Multiple spaces/tabs separation
+          /^(.{3,}?)\s{3,}([0-9,]+\.?[0-9]*)\s*$/,
+          // Pattern 9: Tab-separated values
+          /^(.{3,}?)\t+([0-9]+(?:\.[0-9]+)?)\t+([0-9,]+\.?[0-9]*)\t*.*$/,
+          // Pattern 10: Pipe-separated values
+          /^(.{3,}?)\|([0-9]+(?:\.[0-9]+)?)\|([0-9,]+\.?[0-9]*)\|?.*$/,
+        ];
+        for (const pattern of tableRowPatterns) {
+          const match = line.match(pattern);
+          if (match) {
+            console.log(`Pattern matched for line "${line}":`, match); // Debug pattern matching
+            let description, quantity, price;
+
+            // Handle different pattern types based on number of capture groups
+            if (match.length === 5) {
+              // Pattern with description, quantity, unit price, and total
+              description = match[1].trim();
+              quantity = parseFloat(match[2]) || 1;
+              const unitPrice = parseFloat(match[3].replace(/,/g, ""));
+              const totalPrice = parseFloat(match[4].replace(/,/g, ""));
+
+              // Use unit price if available, otherwise use total price
+              if (!isNaN(unitPrice) && unitPrice > 0) {
+                price = unitPrice;
+              } else if (!isNaN(totalPrice) && totalPrice > 0) {
+                price = totalPrice / quantity; // Calculate unit price from total
+              }
+            } else if (match.length === 4) {
+              // Pattern with description, quantity, and price
+              description = match[1].trim();
+              quantity = parseFloat(match[2]) || 1;
+              price = parseFloat(match[3].replace(/,/g, ""));
+            } else if (match.length === 3) {
+              // Pattern with description and price only (no quantity)
+              description = match[1].trim();
+              quantity = 1;
+              price = parseFloat(match[2].replace(/,/g, ""));
+            }
+
+            // Validate extracted data
+            if (
+              description &&
+              description.length > 2 &&
+              !isNaN(price) &&
+              price > 0 &&
+              quantity > 0
+            ) {
+              // Clean up description
+              description = description
+                .replace(/^\d+\.?\s*/, "") // Remove leading numbers
+                .replace(/[^\w\s.,/-]/g, "") // Remove special chars
+                .trim();
+
+              // Ensure quantity is reasonable (not a price that was mistaken for quantity)
+              if (quantity > 1000) {
+                // If quantity seems too high, it might be a price, so default to 1
+                quantity = 1;
+              }
+
+              // Filter out non-item descriptions
+              if (
+                !/^(?:total|subtotal|tax|vat|discount|shipping|fee|charge|amount|due|balance|paid)$/i.test(
+                  description
+                )
+              ) {
+                items.push({
+                  id: items.length + 1,
+                  description: description.substring(0, 150),
+                  quantity: Math.round(quantity * 100) / 100, // Round to 2 decimal places
+                  price: price.toFixed(2),
+                });
+                break; // Found match, move to next line
+              }
+            }
+          }
+        }
+      }
+    }
+    // Strategy 2: Enhanced fallback - look for any price patterns with better quantity detection
+    if (items.length === 0) {
+      const fallbackPatterns = [
+        // Pattern with potential quantity and price
+        /^(.+?)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9,]+\.[0-9]{2})\s*$/gm,
+        // Pattern with description and price only
+        /^(.+?)\s+([0-9,]+\.[0-9]{2})\s*$/gm,
+        // Pattern with dash separator
+        /(.+?)\s*[-–—]\s*([0-9]+(?:\.[0-9]+)?)?\s*\$?([0-9,]+\.?[0-9]*)/g,
+        // Pattern with colon separator
+        /(.+?)\s*[:]\s*([0-9]+(?:\.[0-9]+)?)?\s*\$?([0-9,]+\.?[0-9]*)/g,
+        // Pattern for tab-separated data
+        /^(.+?)\t+([0-9]+(?:\.[0-9]+)?)\t+([0-9,]+\.?[0-9]*)/gm,
+      ];
+
+      for (const pattern of fallbackPatterns) {
+        let match;
+        while ((match = pattern.exec(text)) !== null && items.length < 10) {
+          let description, quantity, price;
+
+          if (match.length === 4) {
+            // Has description, quantity, and price
+            description = match[1].trim();
+            quantity = parseFloat(match[2]) || 1;
+            price = parseFloat(match[3].replace(/,/g, ""));
+          } else if (match.length === 3) {
+            // Has description and price only
+            description = match[1].trim();
+            quantity = 1;
+            price = parseFloat(match[2].replace(/,/g, ""));
+          }
+
+          // Validate and clean data
+          if (
+            description &&
+            description.length > 3 &&
+            !isNaN(price) &&
+            price > 0
+          ) {
+            // Ensure quantity is reasonable
+            if (quantity > 1000) {
+              quantity = 1;
+            }
+
+            if (
+              !/^(?:total|subtotal|tax|vat|discount|shipping|fee|amount|due|balance|paid|invoice|date)$/i.test(
+                description
+              )
+            ) {
+              items.push({
+                id: items.length + 1,
+                description: description.substring(0, 150),
+                quantity: Math.round(quantity * 100) / 100,
+                price: price.toFixed(2),
+              });
+            }
+          }
+        }
+        if (items.length > 0) break;
+      }
+    }
+    // Strategy 3: Context-aware quantity detection - look for quantity indicators
+    if (items.length > 0) {
+      // Try to improve quantity detection for already found items
+      items.forEach((item) => {
+        // Look for quantity indicators in description
+        const qtyPatterns = [
+          /(\d+(?:\.\d+)?)\s*(?:x|times|each|pcs?|pieces?|units?|items?)/i,
+          /(?:qty|quantity|count)[\s:]*(\d+(?:\.\d+)?)/i,
+          /(\d+(?:\.\d+)?)\s*(?:kg|lbs?|pounds?|oz|ounces?|g|grams?)/i,
+          /(\d+(?:\.\d+)?)\s*(?:hrs?|hours?|days?|weeks?|months?)/i,
+          /(\d+(?:\.\d+)?)\s*(?:sets?|boxes?|packs?|bottles?|cans?)/i,
+        ];
+
+        for (const pattern of qtyPatterns) {
+          const qtyMatch = item.description.match(pattern);
+          if (qtyMatch && qtyMatch[1]) {
+            const detectedQty = parseFloat(qtyMatch[1]);
+            if (detectedQty > 0 && detectedQty <= 1000) {
+              item.quantity = Math.round(detectedQty * 100) / 100;
+              // Remove quantity from description to clean it up
+              item.description = item.description.replace(pattern, "").trim();
+              break;
+            }
+          }
+        }
+      });
+    }
+
+    // Remove duplicates
+    const uniqueItems = items.filter(
+      (item, index, self) =>
+        index ===
+        self.findIndex(
+          (i) => i.description.toLowerCase() === item.description.toLowerCase()
+        )
+    );
+
+    return uniqueItems;
   };
 
   const extractPdfContent = async (file) => {
@@ -288,8 +476,15 @@ const PdfUploader = ({
       setIsProcessing((prev) => ({ ...prev, [file.name]: false }));
     }
   };
-
   const handleFiles = async (files) => {
+    // Clear previous data when uploading new files
+    setUploadedFiles([]);
+    setUploadProgress({});
+    setPdfContents({});
+    setExtractedTableData([]);
+    setEditableItems([]);
+    setIsProcessing({});
+
     const fileArray = Array.from(files);
     const validFiles = [];
     const errors = [];
@@ -329,30 +524,21 @@ const PdfUploader = ({
         await simulateFileUpload(file); // Extract PDF content after upload
         try {
           const content = await extractPdfContent(file);
-          setPdfContents((prev) => ({ ...prev, [file.name]: content }));
-          // Auto-fill form fields based on PDF content
-          const extractedData = extractFormDataFromPdf(content);
-          if (extractedData) {
-            const newAutoFilledFields = {
-              invoiceNo: false,
-              item: false,
-              price: false,
+          setPdfContents((prev) => ({ ...prev, [file.name]: content })); // Auto-extract table data and create editable fields
+          const extractedItems = extractTableDataFromPdf(content);
+          if (extractedItems && extractedItems.length > 0) {
+            setExtractedTableData(extractedItems);
+            setEditableItems(extractedItems);
+          } else {
+            // If no items found, create one empty row
+            const emptyItem = {
+              id: 1,
+              description: "",
+              quantity: 1,
+              price: "",
             };
-
-            if (extractedData.invoiceNo && !invoiceNo) {
-              setInvoiceNo(extractedData.invoiceNo);
-              newAutoFilledFields.invoiceNo = true;
-            }
-            if (extractedData.item && !item) {
-              setItem(extractedData.item);
-              newAutoFilledFields.item = true;
-            }
-            if (extractedData.price && !price) {
-              setPrice(extractedData.price);
-              newAutoFilledFields.price = true;
-            }
-
-            setAutoFilledFields(newAutoFilledFields);
+            setExtractedTableData([]);
+            setEditableItems([emptyItem]);
           }
         } catch (error) {
           console.error("Error extracting PDF content:", error);
@@ -406,8 +592,42 @@ const PdfUploader = ({
         }
       }, 300);
     });
+  }; // Helper functions for managing editable items
+  const addNewRow = () => {
+    const newId = Math.max(...editableItems.map((item) => item.id), 0) + 1;
+    setEditableItems([
+      ...editableItems,
+      {
+        id: newId,
+        description: "",
+        quantity: 1,
+        price: "",
+      },
+    ]);
   };
 
+  const removeRow = (id) => {
+    if (editableItems.length > 1) {
+      setEditableItems(editableItems.filter((item) => item.id !== id));
+    }
+  };
+
+  const updateItem = (id, field, value) => {
+    setEditableItems(
+      editableItems.map((item) =>
+        item.id === id ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const calculateTotal = (items) => {
+    if (!items || items.length === 0) return 0;
+    return items.reduce((total, item) => {
+      const price = parseFloat(item.price) || 0;
+      const quantity = parseInt(item.quantity) || 1;
+      return total + price * quantity;
+    }, 0);
+  };
   const formatFileSize = (bytes) => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
@@ -415,21 +635,21 @@ const PdfUploader = ({
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
-  const removeFile = (fileName) => {
-    setUploadedFiles((prev) => prev.filter((file) => file.name !== fileName));
-    setUploadProgress((prev) => {
-      const newProgress = { ...prev };
-      delete newProgress[fileName];
-      return newProgress;
-    });
-    setPdfContents((prev) => {
-      const newContents = { ...prev };
-      delete newContents[fileName];
-      return newContents;
-    });
-  };
   const openFileDialog = () => {
     fileInputRef.current?.click();
+  };
+
+  const clearAll = () => {
+    setUploadedFiles([]);
+    setUploadProgress({});
+    setPdfContents({});
+    setExtractedTableData([]);
+    setEditableItems([]);
+    setIsUploading(false);
+    setIsProcessing({});
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   return (
@@ -452,17 +672,32 @@ const PdfUploader = ({
           accept=".pdf,application/pdf"
           style={{ display: "none" }}
         />
-
         <div className="upload-content">
           <div className="upload-icon">📄</div>
-          <h3>Drop PDF files here or click to browse</h3>
+          <h3>
+            {uploadedFiles.length > 0
+              ? "Upload another PDF"
+              : "Drop PDF files here or click to browse"}
+          </h3>
           <p>
-            Supports: PDF files only | Max size:{" "}
-            {(maxFileSize / (1024 * 1024)).toFixed(1)}MB{" "}
+            Supports: PDF files only | Max size:
+            {(maxFileSize / (1024 * 1024)).toFixed(1)}MB
           </p>
+          {(uploadedFiles.length > 0 || editableItems.length > 0) && (
+            <button
+              type="button"
+              className="clear-all-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                clearAll();
+              }}
+              title="Clear all data and start over"
+            >
+              🗑️ Clear All
+            </button>
+          )}
         </div>
       </div>
-
       {/* Upload Progress Section */}
       {Object.keys(uploadProgress).length > 0 && (
         <div className="upload-progress-section">
@@ -487,7 +722,6 @@ const PdfUploader = ({
           ))}
         </div>
       )}
-
       {/* Display PDF content automatically after upload */}
       {uploadedFiles.length > 0 && Object.keys(pdfContents).length > 0 && (
         <div className="pdf-content-display">
@@ -518,61 +752,134 @@ const PdfUploader = ({
                 </div>
               </div>
             );
-          })}{" "}
+          })}
         </div>
       )}
+      {/* Editable Table Form - Auto-filled from PDF */}
+      {editableItems.length > 0 && (
+        <div className="table-form-section">
+          <div className="form-header">
+            <h4>📋 Extracted Table Data</h4>
+            <div className="form-info">
+              {extractedTableData.length > 0 && (
+                <span className="auto-fill-badge">
+                  ✅ {extractedTableData.length} items auto-detected
+                </span>
+              )}
+            </div>
+          </div>
 
-      
-      {/* Form Fields */}
-      <div className="form-fields-section">
-        <div className="form-grid">
-          <div className="form-field">
-            <label htmlFor="invoiceNo">Invoice No</label>
-            <input
-              type="text"
-              id="invoiceNo"
-              value={invoiceNo}
-              onChange={(e) => {
-                setInvoiceNo(e.target.value);
-                setAutoFilledFields((prev) => ({ ...prev, invoiceNo: false }));
-              }}
-              placeholder="Enter invoice number"
-              className="form-input"
-            />
+          <div className="table-form">
+            <div className="table-header">
+              <div className="col-number">#</div>
+              <div className="col-description">Description</div>
+              <div className="col-quantity">Qty</div>
+              <div className="col-price">Price</div>
+              <div className="col-total">Total</div>
+              <div className="col-actions">Actions</div>
+            </div>
+
+            <div className="table-rows">
+              {editableItems.map((item, index) => (
+                <div key={item.id} className="table-row">
+                  <div className="col-number">
+                    <span className="row-number">{index + 1}</span>
+                  </div>
+
+                  <div className="col-description">
+                    <input
+                      type="text"
+                      value={item.description}
+                      onChange={(e) =>
+                        updateItem(item.id, "description", e.target.value)
+                      }
+                      placeholder="Enter item description"
+                      className="form-input description-input"
+                    />
+                  </div>
+
+                  <div className="col-quantity">
+                    <input
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        updateItem(item.id, "quantity", e.target.value)
+                      }
+                      placeholder="1"
+                      min="1"
+                      className="form-input quantity-input"
+                    />
+                  </div>
+
+                  <div className="col-price">
+                    <input
+                      type="number"
+                      value={item.price}
+                      onChange={(e) =>
+                        updateItem(item.id, "price", e.target.value)
+                      }
+                      placeholder="0.00"
+                      step="0.01"
+                      min="0"
+                      className="form-input price-input"
+                    />
+                  </div>
+
+                  <div className="col-total">
+                    <span className="total-value">
+                      $
+                      {(
+                        (parseFloat(item.price) || 0) *
+                        (parseInt(item.quantity) || 1)
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="col-actions">
+                    {editableItems.length > 1 && (
+                      <button
+                        type="button"
+                        className="remove-row-btn"
+                        onClick={() => removeRow(item.id)}
+                        title="Remove row"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="table-footer">
+              <div className="add-row-section">
+                <button
+                  type="button"
+                  className="add-row-btn"
+                  onClick={addNewRow}
+                  title="Add new row"
+                >
+                  + Add Row
+                </button>
+              </div>
+
+              <div className="grand-total-section">
+                <div className="grand-total-label">Grand Total:</div>
+                <div className="grand-total-amount">
+                  ${calculateTotal(editableItems).toFixed(2)}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="form-field">
-            <label htmlFor="item">Item</label>
-            <input
-              type="text"
-              id="item"
-              value={item}
-              onChange={(e) => {
-                setItem(e.target.value);
-                setAutoFilledFields((prev) => ({ ...prev, item: false }));
-              }}
-              placeholder="Enter item description"
-              className="form-input"
-            />
-          </div>
-          <div className="form-field">
-            <label htmlFor="price">Price</label>
-            <input
-              type="number"
-              id="price"
-              value={price}
-              onChange={(e) => {
-                setPrice(e.target.value);
-                setAutoFilledFields((prev) => ({ ...prev, price: false }));
-              }}
-              placeholder="0.00"
-              step="0.01"
-              min="0"
-              className="form-input"
-            />
-          </div>{" "}
+
+          {extractedTableData.length === 0 && (
+            <div className="no-data-message">
+              <p>⚠️ No table data was automatically detected in this PDF.</p>
+              <p>You can manually enter the information in the form above.</p>
+            </div>
+          )}
         </div>
-      </div>
-      
+      )}
     </div>
   );
 };
