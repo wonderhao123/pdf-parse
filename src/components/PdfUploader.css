@@ -1,0 +1,266 @@
+/* PDF Uploader Styles - Only Used Classes */
+
+.pdf-uploader {
+  max-width: 1000px;
+  margin: 20px auto;
+}
+
+.upload-area {
+  border: 2px dashed #e0e0e0;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-area.drag-active {
+  border-color: #4ecdc4;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  transform: scale(1.02);
+}
+
+.upload-area.uploading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.upload-content {
+  max-width: 400px;
+}
+
+.upload-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.upload-content h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.upload-content p {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Form Fields Section */
+.form-fields-section {
+  margin-top: 24px;
+}
+
+.form-fields-section h4 {
+  margin: 0 0 20px 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.form-field label {
+  margin-bottom: 8px;
+  color: #333;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.form-input {
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #333;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-input::placeholder {
+  color: #999;
+}
+
+/* PDF Content Display */
+.pdf-content-display {
+  margin-top: 24px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.pdf-content-display h4 {
+  margin: 0;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.pdf-text-container {
+  border-bottom: 1px solid #e9ecef;
+}
+
+.pdf-text-container:last-child {
+  border-bottom: none;
+}
+
+.pdf-file-header {
+  padding: 16px 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pdf-file-header h5 {
+  margin: 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.pdf-info {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+}
+
+.pdf-extracted-text {
+  padding: 20px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.page-text-section {
+  margin-bottom: 24px;
+}
+
+.page-text-section:last-child {
+  margin-bottom: 0;
+}
+
+.page-text-header {
+  font-size: 14px;
+  font-weight: 600;
+  color: #667eea;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid #f0f2ff;
+}
+
+.page-text-content {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #555;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* Upload Progress Section */
+.upload-progress-section {
+  margin-top: 24px;
+}
+
+.upload-progress-section h4 {
+  margin: 0 0 16px 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.progress-item {
+  margin-bottom: 16px;
+}
+
+.progress-item:last-child {
+  margin-bottom: 0;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.file-name {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-percent {
+  font-size: 12px;
+  color: #666;
+  font-weight: 600;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #f0f0f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.processing-indicator {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 6px;
+  color: #856404;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Animation for processing indicator */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.processing-indicator span {
+  animation: pulse 1.5s ease-in-out infinite;
+}

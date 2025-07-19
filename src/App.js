@@ -1,23 +1,50 @@
-import logo from './logo.svg';
+import React, { useState } from 'react';
 import './App.css';
+import PdfUploader from './components/PdfUploader';
 
 function App() {
+  const [notifications, setNotifications] = useState([]);
+
+  const addNotification = (message, type = 'info') => {
+    const id = Date.now();
+    const notification = { id, message, type };
+    setNotifications(prev => [...prev, notification]);
+
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 5000);
+  };
+
+  const removeNotification = (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const handleFilesSelected = (files) => {
+    addNotification(`Selected ${files.length} PDF file(s) for upload`, 'info');
+  };
+
+  const handleUploadComplete = (files) => {
+    addNotification(`Successfully uploaded and processed ${files.length} PDF file(s)!`, 'success');
+  };
+
+  const handleError = (errors) => {
+    errors.forEach(error => {
+      addNotification(`${error.file}: ${error.error}`, 'error');
+    });
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div>
+      <main className="main-content">
+        <PdfUploader
+          maxFileSize={50 * 1024 * 1024} // 50MB
+          multiple={false}
+          onFilesSelected={handleFilesSelected}
+          onUploadComplete={handleUploadComplete}
+          onError={handleError}
+        />
+      </main>
     </div>
   );
 }
