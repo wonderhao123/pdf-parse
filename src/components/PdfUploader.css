@@ -104,7 +104,7 @@
 .quantity-input,
 .price-input {
   text-align: center;
-  width: 50px;
+  width: 80px;
 }
 
 /* PDF Content Display */
@@ -842,121 +842,6 @@
 .no-data-message p:first-child {
   font-weight: 600;
   font-size: 16px;
-}
-
-/* Responsive design for items */
-@media (max-width: 768px) {
-  .item-fields {
-    grid-template-columns: 1fr;
-  }
-
-  .items-header {
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
-
-  .item-row {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .item-number,
-  .remove-item-btn {
-    margin-top: 0;
-    align-self: flex-start;
-  }
-
-  .total-section {
-    flex-direction: column;
-    gap: 8px;
-    text-align: center;
-  }
-
-  .info-card {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .info-label {
-    min-width: auto;
-  }
-
-  .info-value {
-    width: 100%;
-  }
-
-  .item-details {
-    padding-right: 0;
-  }
-
-  .item-card .item-number {
-    position: static;
-    margin-bottom: 16px;
-    align-self: flex-start;
-  }
-
-  .item-price {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .auto-total-section {
-    flex-direction: column;
-    gap: 12px;
-    text-align: center;
-  }
-}
-
-/* Responsive design for table form */
-@media (max-width: 768px) {
-
-  .table-header,
-  .table-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .table-header {
-    display: none;
-    /* Hide headers on mobile */
-  }
-
-  .table-row {
-    padding: 16px;
-    border-radius: 12px;
-  }
-
-  .table-row>div {
-    margin-bottom: 12px;
-  }
-
-  .table-row>div:last-child {
-    margin-bottom: 0;
-  }
-
-  .row-number {
-    margin: 0 0 16px 0;
-  }
-
-  .table-footer {
-    flex-direction: column;
-    gap: 16px;
-    text-align: center;
-  }
-
-  .grand-total-section {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .form-header {
-    flex-direction: column;
-    gap: 12px;
-    text-align: center;
-  }
 }
 
 .clear-all-btn {
